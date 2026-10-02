@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>City Weather Dashboard</title>
+</head>
+<body>
+    <h1>City Weather Dashboard</h1>
+    <p>Welcome to the weather application.</p>
+
+    <form action="/" method="GET">
+        <label for="city">Enter a city:</label>
+        <input
+            type="text"
+            id="city"
+            name="city"
+            placeholder="Example: Mumbai"
+            required
+        >
+        <button type="submit">Search</button>
+    </form>
+
+    {% if error %}
+    <p>{{ error }}</p>
+    {% endif %}
+
+    <p>City: {{ city }}</p>
+    <p>Temperature: {{ temperature }}°C</p>
+</body>
+</html>

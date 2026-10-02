@@ -1,0 +1,16 @@
+# Virtual environments
+venv/
+.venv/
+
+# Python-generated files
+__pycache__/
+*.pyc
+
+# Local configuration and secrets
+.env
+
+# Local databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
