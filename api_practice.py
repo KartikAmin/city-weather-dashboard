@@ -11,11 +11,16 @@ try:
         params={"name":city, "count":1},
         timeout=10
     )
+
+    response.raise_for_status()
+
 except requests.exceptions.Timeout:
     print("The weather service took too long. Please try again.")
 
 except requests.ConnectionError:
     print("Could not connect to the weather service.")
+except requests.exceptions.HTTPError:
+    print("The city lookup service returned an HTTP error.")
 
 else:
     print(response.status_code)
@@ -41,11 +46,16 @@ else:
             },
             timeout = 10
         )
+
+        weather_response.raise_for_status()
+
     except requests.exceptions.Timeout:
         print ("The weather service took too long. Please try again.")
 
     except requests.exceptions.ConnectionError:
         print("Could not connect to the weather service.") 
+    except requests.exceptions.HTTPError:
+        print("The weather service returned an HTTP error.")
 
     else:
         print("Request Received")
