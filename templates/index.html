@@ -2,29 +2,146 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#edf3f8">
     <title>City Weather Dashboard</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #e8f0f7;
+            background: #17212d;
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-width: 320px; background: linear-gradient(180deg, #141e29, #192735); }
+        .page-shell { width: min(100% - 32px, 1040px); margin: 0 auto; padding: 30px 0 42px; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-bottom: 25px; }
+        .brand { display: flex; align-items: center; gap: 11px; color: #e8f0f7; font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; }
+        .brand-mark { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 13px; background: #243343; box-shadow: 0 4px 14px #00000026; font-size: 1.2rem; }
+        .search-form { display: flex; width: min(100%, 415px); gap: 9px; }
+        .search-form input { flex: 1; min-width: 0; padding: 12px 15px; border: 1px solid #394656; border-radius: 12px; outline: none; background: #202936; color: #edf3f9; font: inherit; box-shadow: 0 3px 12px #00000018; }
+        .search-form input:focus { border-color: #70abc8; box-shadow: 0 0 0 3px #4e96ba33; }
+        .search-form button { padding: 0 19px; border: 0; border-radius: 12px; background: #2879a7; color: white; font: inherit; font-weight: 650; cursor: pointer; transition: background .18s ease, transform .18s ease; }
+        .search-form button:hover { background: #1e668f; transform: translateY(-1px); }
+        .error-message { margin: 0 0 16px; padding: 12px 15px; border: 1px solid #75483f; border-radius: 12px; background: #382a2b; color: #ffd0c7; }
+        .weather-card { position: relative; isolation: isolate; display: grid; grid-template-columns: 1.15fr .85fr; align-items: center; gap: 20px; min-height: 250px; overflow: hidden; padding: clamp(24px, 5vw, 38px); border: 1px solid #ffffff55; border-radius: 24px; color: #f7fbff; box-shadow: 0 16px 38px #243e551b; }
+        .weather-card::before, .weather-card::after, .weather-effects { position: absolute; pointer-events: none; }
+        .weather-card::before { content: ""; inset: 0; z-index: 0; background: linear-gradient(135deg, #245878, #4c8aa3); transition: background 1.5s ease; }
+        .weather-card::after { content: ""; inset: 0; z-index: 0; background: linear-gradient(90deg, #163b56aa 0%, #173d584f 62%, #173d581a 100%); }
+        .sky-dawn::before { background: linear-gradient(125deg, #315d7b, #9b858f 64%, #c29d83); }
+        .sky-day::before { background: linear-gradient(125deg, #245878, #4c8aa3 72%, #72a5a7); }
+        .sky-sunset::before { background: linear-gradient(125deg, #354f70, #927482 58%, #c28b72); }
+        .sky-night::before { background: linear-gradient(125deg, #172b46, #294563 72%, #365f70); }
+        .weather-effects { inset: 0; z-index: 1; overflow: hidden; }
+        .weather-effects::before, .weather-effects::after { position: absolute; content: ""; inset: 0; }
+        .condition-clear.sky-day .weather-effects::before,
+        .condition-clear.sky-dawn .weather-effects::before,
+        .condition-clear.sky-sunset .weather-effects::before { background: radial-gradient(circle at 83% 22%, #ffe6a15c 0, #ffd36e2a 14%, transparent 38%); animation: glow-breathe 9s ease-in-out infinite alternate; }
+        .condition-clear.sky-night .weather-effects::before { background: radial-gradient(circle at 82% 23%, #bbd9f22d 0, transparent 27%); }
+        .condition-cloudy .weather-effects::before { background: radial-gradient(ellipse at 78% 6%, #e5edf22b, transparent 46%), linear-gradient(180deg, #344c5b12, transparent 70%); }
+        .condition-fog .weather-effects::before { background: linear-gradient(115deg, transparent 14%, #d9e4e544 42%, transparent 66%), linear-gradient(180deg, #d9e4e522, transparent); animation: haze-drift 15s ease-in-out infinite alternate; }
+        .condition-rain .weather-effects::before,
+        .condition-storm .weather-effects::before { background: repeating-linear-gradient(108deg, transparent 0 31px, #d9efff4a 32px, transparent 34px 52px); background-size: 90px 170px; animation: rain-fall 1.5s linear infinite; }
+        .condition-storm .weather-effects::after { background: linear-gradient(125deg, #08192d35, transparent 68%); }
+        .condition-snow .weather-effects::before { background: radial-gradient(circle, #ffffffa8 0 1.5px, transparent 2px), radial-gradient(circle, #ffffff78 0 1px, transparent 2px); background-size: 53px 57px, 81px 83px; animation: snow-fall 8s linear infinite; opacity: .45; }
+        .weather-card.is-windy .weather-effects::after { background: repeating-linear-gradient(169deg, transparent 0 51px, #e7f7f52b 52px, transparent 54px 82px); animation: breeze-drift 9s ease-in-out infinite alternate; }
+        .weather-copy, .weather-aside { position: relative; z-index: 2; }
+        .weather-eyebrow { margin: 0 0 14px; color: #dceaf3; font-size: .82rem; font-weight: 650; letter-spacing: .13em; text-transform: uppercase; }
+        .weather-copy h1 { margin: 0; color: #fff; font-size: clamp(1.7rem, 4vw, 2.45rem); font-weight: 600; letter-spacing: -.04em; line-height: 1.13; }
+        .temperature { margin: 11px 0 4px; color: #fff; font-size: 1.55rem; font-weight: 500; letter-spacing: -.035em; }
+        .condition-label { margin: 0; color: #e3edf5; font-size: 1.02rem; }
+        .weather-aside { text-align: right; }
+        .weather-icon { margin: 0 0 7px; font-size: 2.65rem; line-height: 1; }
+        .weather-aside p { margin: 7px 0; }
+        .updated-at { color: #e3edf5; font-size: .88rem; }
+        .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0 28px; }
+        .metric { min-height: 91px; padding: 15px 16px; border: 1px solid #34404f; border-radius: 16px; background: #202936; box-shadow: 0 5px 16px #00000014; }
+        .metric-label { color: #a5b2c2; font-size: .88rem; }
+        .metric-value { display: block; margin-top: 8px; color: #edf3f9; font-size: 1.06rem; font-weight: 700; }
+        .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 11px; color: #e3edf5; font-size: 1.12rem; font-weight: 700; }
+        .section-note { color: #9baaba; font-size: .82rem; font-weight: 450; }
+        .table-scroll { overflow-x: auto; border: 1px solid #374351; border-radius: 14px; background: #202936; box-shadow: 0 5px 16px #00000014; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 13px; border-bottom: 1px solid #374351; text-align: left; white-space: nowrap; }
+        th { background: #283341; color: #c0ccda; font-size: .81rem; font-weight: 700; letter-spacing: .02em; }
+        td { color: #d1dce8; font-size: .9rem; }
+        tbody tr:nth-child(even) { background: #1d2530; }
+        tbody tr:last-child td { border-bottom: 0; }
+        .empty-state { margin: 0; padding: 20px; border: 1px dashed #394656; border-radius: 13px; background: #1d2530; color: #a5b2c2; }
+        @keyframes glow-breathe { from { opacity: .55; } to { opacity: .9; } }
+        @keyframes rain-fall { from { background-position: 0 -80px; } to { background-position: 0 80px; } }
+        @keyframes snow-fall { from { background-position: 0 -55px, 40px -80px; } to { background-position: 18px 55px, 10px 83px; } }
+        @keyframes haze-drift { from { transform: translateX(-4%); opacity: .45; } to { transform: translateX(4%); opacity: .78; } }
+        @keyframes breeze-drift { from { background-position: 0 0; opacity: .45; } to { background-position: 28px 0; opacity: .8; } }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+        @media (max-width: 640px) {
+            .page-shell { width: min(100% - 24px, 1040px); padding-top: 20px; }
+            .topbar { align-items: stretch; flex-direction: column; gap: 15px; margin-bottom: 18px; }
+            .search-form { width: 100%; }
+            .weather-card { grid-template-columns: 1fr; gap: 11px; min-height: 252px; padding: 22px; }
+            .weather-aside { display: flex; align-items: center; gap: 9px; text-align: left; }
+            .weather-icon { margin: 0; font-size: 2rem; }
+            .weather-aside p { margin: 0; }
+            .updated-at { margin-left: auto !important; text-align: right; }
+            .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-bottom: 24px; }
+            .metric { min-height: 80px; padding: 12px; }
+            th, td { padding: 10px; }
+        }
+    </style>
 </head>
 <body>
-    <h1>City Weather Dashboard</h1>
-    <p>Welcome to the weather application.</p>
+    <main class="page-shell">
+        <header class="topbar">
+            <div class="brand"><span class="brand-mark" aria-hidden="true">🌤️</span>City Weather</div>
+            <form class="search-form" action="/" method="GET" aria-label="Search for a city">
+                <input type="text" id="city" name="city" placeholder="Search a city, e.g. Kannur" value="{{ request.args.get('city', '') }}" aria-label="City name" required>
+                <button type="submit">Search</button>
+            </form>
+        </header>
 
-    <form action="/" method="GET">
-        <label for="city">Enter a city:</label>
-        <input
-            type="text"
-            id="city"
-            name="city"
-            placeholder="Example: Mumbai"
-            required
-        >
-        <button type="submit">Search</button>
-    </form>
+        {% if error %}<p class="error-message" role="alert">{{ error }}</p>{% endif %}
 
-    {% if error %}
-    <p>{{ error }}</p>
-    {% endif %}
+        {% if temperature is defined and temperature is not none %}
+        <section class="weather-card sky-{{ sky_phase }} condition-{{ condition_theme }}{% if is_windy %} is-windy{% endif %}" aria-labelledby="weather-heading">
+            <span class="weather-effects" aria-hidden="true"></span>
+            <div class="weather-copy">
+                <p class="weather-eyebrow">Current weather{% if country %} · {{ country }}{% endif %}</p>
+                <h1 id="weather-heading">{{ city }}{% if region %}, {{ region }}{% endif %}</h1>
+                <p class="temperature">{{ temperature }}°C</p>
+                <p class="condition-label">{{ condition }}</p>
+            </div>
+            <div class="weather-aside">
+                <span class="weather-icon" aria-hidden="true">{% if condition_theme == 'storm' %}⛈️{% elif condition_theme == 'rain' %}🌧️{% elif condition_theme == 'snow' %}❄️{% elif condition_theme == 'fog' %}🌫️{% elif condition_theme == 'clear' and sky_phase == 'night' %}🌙{% elif condition_theme == 'clear' %}☀️{% else %}⛅{% endif %}</span>
+                {% if feels_like is defined and feels_like is not none %}<p>Feels like {{ feels_like }}°C</p>{% endif %}
+                {% if retrieved_at %}<p class="updated-at">Updated {{ retrieved_at }}</p>{% endif %}
+            </div>
+        </section>
 
-    <p>City: {{ city }}</p>
-    <p>Temperature: {{ temperature }}°C</p>
+        <section class="metrics" aria-label="Current weather details">
+            {% if humidity is defined and humidity is not none %}<div class="metric"><span class="metric-label">Humidity</span><strong class="metric-value">{{ humidity }}%</strong></div>{% endif %}
+            {% if cloud_cover is defined and cloud_cover is not none %}<div class="metric"><span class="metric-label">Cloud cover</span><strong class="metric-value">{{ cloud_cover }}%</strong></div>{% endif %}
+            {% if wind_speed is defined and wind_speed is not none %}<div class="metric"><span class="metric-label">Wind</span><strong class="metric-value">{{ wind_speed }} km/h</strong></div>{% endif %}
+            {% if feels_like is defined and feels_like is not none %}<div class="metric"><span class="metric-label">Feels like</span><strong class="metric-value">{{ feels_like }}°C</strong></div>{% endif %}
+        </section>
+        {% endif %}
+
+        <section aria-labelledby="history-heading">
+            <h2 class="section-heading" id="history-heading">Recent searches <span class="section-note">Latest 5 searches</span></h2>
+            {% if recent_searches %}
+            <div class="table-scroll">
+                <table>
+                    <thead><tr><th>City</th><th>Region</th><th>Country</th><th>Temperature</th><th>Condition</th><th>Humidity</th><th>Retrieved at (UTC)</th></tr></thead>
+                    <tbody>
+                    {% for search in recent_searches %}
+                        <tr><td>{{ search[0] }}</td><td>{{ search[1] or '—' }}</td><td>{{ search[2] or '—' }}</td><td>{{ search[3] }}°C</td><td>{{ search[4] }}</td><td>{{ search[5] }}%</td><td>{{ search[6] }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}<p class="empty-state">No searches yet. Search for a city to see its current weather.</p>{% endif %}
+        </section>
+    </main>
 </body>
 </html>
