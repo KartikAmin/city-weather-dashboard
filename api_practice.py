@@ -13,13 +13,16 @@ def get_weather(city):
 
     if not city:
         return {"error":"Enter a Valid City Name"}
-    
+
     try:
         response = requests.get(
             "https://geocoding-api.open-meteo.com/v1/search",
             params={"name":city, "count":1},
             timeout=10
         )
+
+        if response.status_code == 429:
+            return {"error":"City Lookup is busy. Please try again later."}
 
         response.raise_for_status()
 
@@ -35,14 +38,32 @@ def get_weather(city):
     else:
         print(response.status_code)
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            return {"error":"The City Lookup Service returned an invalid response"}
+
+        if not isinstance(data, dict):
+            return {"error":"City lookup service returned unexpected data."}
+        
         locations = data.get("results",[])
+
+        if not isinstance(locations, list):
+            return {"error": "City lookup service returned unexpected data."}
 
         if not locations:
             print("No matching city found. Please check the name.")
             return {"error": "No matching city found. Please check the name."}
 
         location = locations[0]
+        if not isinstance(location,dict):
+            return {"error": "City lookup service returned unexpected data."}
+
+        required_fields = ("name", "latitude", "longitude")
+
+        if any(field not in location for field in required_fields):
+            return {"error": "City lookup service returned incomplete city data."}
+        
         matched_city = location["name"]
         region = location.get("admin1","")
         country = location.get("country","")
@@ -62,6 +83,9 @@ def get_weather(city):
                 timeout = 10
             )
 
+            if weather_response.status_code == 429:
+                return {"error":"The Weather Service is busy. Please try again later."}
+
             weather_response.raise_for_status()
 
         except requests.exceptions.Timeout:
@@ -75,16 +99,24 @@ def get_weather(city):
 
         else:
             print("Request Received")
-            weather_data = weather_response.json()
-            # print (weather_data)
-            current_weather = weather_data["current"]
-            daily_weather = weather_data["daily"]
-            current_temperature = current_weather["temperature_2m"]
-            current_humidity = current_weather["relative_humidity_2m"]
-            current_feels_like = current_weather["apparent_temperature"]
-            weather_cloud = current_weather["cloud_cover"]
-            Weather_wind = current_weather["wind_speed_10m"]
-            weather_code = current_weather["weather_code"]
+            try:
+                weather_data = weather_response.json()
+            except ValueError:
+                return {"error":"Weather service returned an invalid response."}
+
+            try:
+                current_weather = weather_data["current"]
+                daily_weather = weather_data["daily"]
+                current_temperature = current_weather["temperature_2m"]
+                current_humidity = current_weather["relative_humidity_2m"]
+                current_feels_like = current_weather["apparent_temperature"]
+                weather_cloud = current_weather["cloud_cover"]
+                Weather_wind = current_weather["wind_speed_10m"]
+                weather_code = current_weather["weather_code"]
+                weather_sunrise = daily_weather["sunrise"][0]
+                weather_sunset = daily_weather["sunset"][0]
+            except (KeyError, TypeError, IndexError):
+                return {"error":"The weather service returned incomplete data. Please try again later."}
 
             condition = WEATHER_DESCRIPTIONS.get(
                 weather_code,
@@ -104,8 +136,8 @@ def get_weather(city):
                 "weather_code": weather_code,
                 "is_day": current_weather.get("is_day", 0),
                 "weather_time": current_weather.get("time"),
-                "sunrise": daily_weather["sunrise"][0],
-                "sunset": daily_weather["sunset"][0],
+                "sunrise": weather_sunrise,
+                "sunset": weather_sunset,
                 "region":region,
                 "country":country,
                 "retrieved_at":retrieved_at
