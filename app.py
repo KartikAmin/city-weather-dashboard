@@ -26,10 +26,130 @@ def initialise_database():
        )
     """)
 
+    existing_columns={
+        row[1] for row in connection.execute("PRAGMA table_info(searches)")
+    }
+
+    new_columns = {
+        "feels_like": "REAL",
+        "cloud_cover": "INTEGER",
+        "wind_speed": "REAL",
+        "weather_code": "INTEGER",
+        "is_day": "INTEGER",
+        "weather_time": "TEXT",
+        "sunrise": "TEXT",
+        "sunset": "TEXT",
+    }
+
+    for column, data_type in new_columns.items():
+        if column not in existing_columns:
+            connection.execute(
+                f"ALTER TABLE searches ADD COLUMN {column} {data_type}"
+            )
+
     connection.commit()
     connection.close()
 
 initialise_database()
+
+def get_recent_Weather(city):
+    connection = sqlite3.connect(DATABASE)
+    connection.row_factory = sqlite3.Row
+
+    row = connection.execute("""
+        SELECT *
+        FROM searches
+        WHERE lower(trim(city)) = lower(trim(?))
+        ORDER BY id DESC
+        LIMIT 1
+    """,(city,)).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None, None
+
+    try:
+        retrieved_at = datetime.fromisoformat(row["retrieved_at"])
+    except ValueError:
+        return None, row["id"]
+
+    if retrieved_at.tzinfo is None:
+        retrieved_at = retrieved_at.replace(tzinfo=timezone.utc)
+
+    age = datetime.now(timezone.utc) - retrieved_at.astimezone(timezone.utc)
+
+    required_fields = (
+        "feels_like", "cloud_cover", "wind_speed", "weather_code",
+        "is_day", "weather_time", "sunrise", "sunset",
+    )
+
+    if age >= timedelta(hours=1) or any(row[field] is None for field in required_fields):
+        return None, row["id"]
+
+    weather = {
+        "city": row["city"],
+        "region": row["region"],
+        "country": row["country"],
+        "temperature": row["temperature"],
+        "humidity": row["humidity"],
+        "weather": row["condition"],
+        "feels_like": row["feels_like"],
+        "cloudy": row["cloud_cover"],
+        "wind": row["wind_speed"],
+        "weather_code": row["weather_code"],
+        "is_day": row["is_day"],
+        "weather_time": row["weather_time"],
+        "sunrise": row["sunrise"],
+        "sunset": row["sunset"],
+        "retrieved_at": retrieved_at,
+    }
+
+    return weather, row["id"]
+
+def save_weather(weather, row_id=None):
+    connection = sqlite3.connect(DATABASE)
+
+    values = (
+        weather["city"],        
+        weather["region"],
+        weather["country"],
+        weather["temperature"],
+        weather["weather"],
+        weather["humidity"],
+        weather["retrieved_at"].isoformat(),
+        weather["feels_like"],
+        weather["cloudy"],
+        weather["wind"],
+        weather["weather_code"],
+        weather["is_day"],
+        weather["weather_time"],
+        weather["sunrise"],
+        weather["sunset"],
+    )
+
+    if row_id is None:
+        connection.execute("""
+            INSERT INTO searches(
+            city, region, country, temperature, condition, humidity, retrieved_at,
+            feels_like, cloud_cover, wind_speed, weather_code, is_day, weather_time,
+            sunrise, sunset
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,values)
+
+    else:
+        connection.execute("""
+            UPDATE searches
+            SET city=?, region=?, country=?, temperature=?, condition=?, humidity=?, retrieved_at=?,
+                feels_like=?, cloud_cover=?, wind_speed=?, weather_code=?, is_day=?, weather_time=?,
+                sunrise=?, sunset=? 
+            WHERE id=?
+        """,values + (row_id,))
+
+    connection.commit()   
+    connection.close()
+     
 
 def get_sky_phase(weather_time, sunrise, sunset, is_day):
     """Return a gentle day-cycle class using the city's local API times."""
@@ -89,13 +209,19 @@ def dashboard():
         error = "please enter a valid City Name"
     else:
         if city:
-            app.logger.info("Weather search requested for %s", city)
-            weather = get_weather(city)
+            weather, cached_row_id = get_recent_Weather(city)
+            used_cache = weather is not None
+
+            if used_cache:
+                app.logger.info("Using Cached Weather for %s", weather["city"])
+            else:
+                app.logger.info("Weather search requested for %s", city)
+                weather = get_weather(city)
             if "error" in weather:
                 error = weather["error"]
                 app.logger.info("Weather Search Failed: %s", error)
             else:   
-                weather_city = weather["city"]
+                weather_city = weather["city"]  
                 weather_temp = weather["temperature"]
                 weather_humidity = weather["humidity"]
                 weather_condition = weather["weather"]
@@ -122,37 +248,25 @@ def dashboard():
                 condition_theme = get_condition_theme(weather_code)
                 is_windy = weather_wind >= 22
 
-                connection = sqlite3.connect(DATABASE)
-
-                connection.execute("""
-                    INSERT INTO searches
-                    (city, region, country, temperature, condition, humidity, retrieved_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,(
-                    weather_city,
-                    weather_region,
-                    weather_country,
-                    weather_temp,
-                    weather_condition,
-                    weather_humidity,
-                    weather_retrievetime.isoformat()
-                )
-                )
-
-                connection.commit()
-                connection.close()  
+                if not used_cache:
+                    save_weather(weather, cached_row_id)  
 
     connection = sqlite3.connect(DATABASE)
     recent_searches = connection.execute("""
     SELECT city, region, country, temperature, condition, humidity, retrieved_at
-    FROM searches
-    ORDER BY id DESC
+    FROM searches AS search
+    where search.id = (
+        SELECT MAX(candidate.id)
+        FROM searches AS candidate
+        WHERE lower(trim(candidate.city)) = lower(trim(search.city))
+    )
+    ORDER BY search.retrieved_at DESC, search.id DESC
     LIMIT 5
     """).fetchall()
 
     connection.close()
     
-    return render_template("index.html",
+    return render_template("index.html",    
                            city=weather_city,
                            temperature=weather_temp,
                            humidity=weather_humidity,
