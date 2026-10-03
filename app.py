@@ -3,8 +3,14 @@ from api_practice import get_weather
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
+import logging
 
-IST = timezone(timedelta(hours=5, minutes=30))      
+IST = timezone(timedelta(hours=5, minutes=30))     
+
+logging.basicConfig(
+    level = logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 
 app = Flask(__name__)
 
@@ -51,6 +57,7 @@ def initialise_database():
     connection.close()
 
 initialise_database()
+app.logger.info("Weather dashboard initialized; database ready")
 
 def get_recent_Weather(city):
     connection = sqlite3.connect(DATABASE)
@@ -207,6 +214,7 @@ def dashboard():
     
     if "city" in request.args and city == "":
         error = "please enter a valid City Name"
+        app.logger.warning("Weather search rejected: empty city input")
     else:
         if city:
             weather, cached_row_id = get_recent_Weather(city)
